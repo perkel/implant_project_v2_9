@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 #  These are local to this project
 import set_scenario as s_scen
 import surv_full
-import get_thresholds as gt
+import get_thresholds2 as gt
 import calc_ecap as c_ecap
 from common_params import *
 
@@ -80,11 +80,11 @@ def fwd_model_5(mode):
         COCHLEA['radius'] = np.ones(NELEC) * fp['cylRadius']  # note that '.rpos' is in mm, must fit inside the radius
 
         # Construct the simParams structure
-        simParams['cochlea'] = COCHLEA
-        simParams['electrodes'] = electrodes
-        simParams['channel'] = CHANNEL
-        simParams['grid'] = GRID
-        simParams['run_info'] = RUN_INFO
+        sim_params['cochlea'] = COCHLEA
+        sim_params['electrodes'] = electrodes
+        sim_params['channel'] = CHANNEL
+        sim_params['grid'] = GRID
+        sim_params['run_info'] = RUN_INFO
 
         # Example of neural activation at threshold (variants of Goldwyn paper) ; using choices for channel, etc.
         # made above.
@@ -100,19 +100,19 @@ def fwd_model_5(mode):
         thr_sim_db[:] = np.nan
 
         # Get survival values for all 330 clusters from the 16 values at electrode positions.
-        NEURONS['nsurvival'] = surv_full.surv_full(simParams['electrodes']['zpos'], surv_vals, simParams['grid']['z'])
-        simParams['neurons'] = NEURONS
+        NEURONS['nsurvival'] = surv_full.surv_full(sim_params['electrodes']['zpos'], surv_vals, sim_params['grid']['z'])
+        sim_params['neurons'] = NEURONS
         #  Sanity check. Could add other sanity checks here
-        if simParams['grid']['r'] < 1:
+        if sim_params['grid']['r'] < 1:
             raise ('Ending script. One or more evaluation points are inside cylinder;\
              not appropriate for neural activation.')
 
-        if 'threshold' in all_measures:  # TODO -- may have a logic issue here if we don't want mp and tp
+        if 'threshold' in all_measures:
             # Determine threshold for each value of sigma
             for i in range(0, n_sig):  # number of sigma values to test
-                simParams['channel']['behavior'] = 0  # Regular threshold search
-                simParams['channel']['sigma'] = all_sigs[i]
-                [thr_sim_db[:, i], neuron_vals] = gt.get_thresholds(act_vals, fp, simParams)
+                sim_params['channel']['behavior'] = 0  # Regular threshold search
+                sim_params['channel']['sigma'] = all_sigs[i]
+                [thr_sim_db[:, i], neuron_vals] = gt.get_thresholds(act_vals, fp, sim_params)
 
             # Write a csv file
             outfile = FWDOUTPUTDIR + 'FwdModelOutput_thresh_' + scenario + '.csv'
@@ -129,6 +129,9 @@ def fwd_model_5(mode):
                     elif n_sig == 3:
                         data_writer.writerow([row, surv_vals[row], electrodes['rpos'][row], thr_sim_db[row, 0],
                                               thr_sim_db[row, 1], thr_sim_db[row, 2]])
+                    elif n_sig == 4:
+                        data_writer.writerow([row, surv_vals[row], electrodes['rpos'][row], thr_sim_db[row, 0],
+                                              thr_sim_db[row, 1], thr_sim_db[row, 2], thr_sim_db[row, 3]])
                     else:
                         data_writer.writerow([row, surv_vals[row], electrodes['rpos'][row]])
 
@@ -138,9 +141,9 @@ def fwd_model_5(mode):
             m_level_db = np.empty(NELEC)  # Array for threshold data for different stim elecs and sigma values
             m_level_db[:] = np.nan
             # for i in range(0, n_behavior):  # number of sigma values to test
-            simParams['channel']['sigma'] = 0  # sigmaVals[i]
-            simParams['channel']['behavior'] = 1  # search for m_level, not threshold
-            [m_level_db, neuron_vals] = gt.get_thresholds(act_vals, fp, simParams)
+            sim_params['channel']['sigma'] = 0  # sigmaVals[i]
+            sim_params['channel']['behavior'] = 1  # search for m_level, not threshold
+            [m_level_db, neuron_vals] = gt.get_thresholds(act_vals, fp, sim_params)
 
             # Write a csv file
             outfile = FWDOUTPUTDIR + 'FwdModelOutput_mp_mcl_' + scenario + '.csv'
@@ -154,8 +157,8 @@ def fwd_model_5(mode):
             ec_thresh = 1000  # neurons
             nstim = 500
             # need to reset sigma to 0.0
-            simParams['channel']['sigma'] = 0.0
-            ecap = c_ecap.calc_ecap(act_vals, fp, simParams, ec_thresh, thr_sim_db[:, i], nstim)
+            sim_params['channel']['sigma'] = 0.0
+            ecap = c_ecap.calc_ecap(act_vals, fp, sim_params, ec_thresh, thr_sim_db[:, i], nstim)
 
             # Save ecap
             np.save(FWDOUTPUTDIR + 'ecap_' + scenario, ecap)
@@ -170,7 +173,7 @@ def fwd_model_5(mode):
         # Save simParams
         spname = FWDOUTPUTDIR + 'simParams' + scenario
         with open(spname + '.pickle', 'wb') as f:
-            pickle.dump(simParams, f, pickle.HIGHEST_PROTOCOL)
+            pickle.dump(sim_params, f, pickle.HIGHEST_PROTOCOL)
         print('saved: ', spname + '.pickle')
         # Note that this is saving only the last simParams structure from the loops on sigma and in get_thresholds.
 

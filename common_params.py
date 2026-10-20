@@ -5,7 +5,6 @@ import numpy as np
 params_version = 2.0  # new version of common params for this
 # Basic parameters
 NELEC = 16
-# ELEC_BASALPOS = 26.25  # in mm ** removed this 20 May 2024 to make sure electrode array is centered in neurons
 
 # Neural activation parameters
 R_EXT = 250.0  # ohm-cm
@@ -13,7 +12,7 @@ RE_TEXT = 'RE' + str(round(R_EXT))
 R_INT = 70.0  # ohm-cm
 RI_TEXT = 'RI' + str(round(R_INT))
 THRTARG = 100
-M_level_target = 100
+M_level_target = 500
 TARG_TEXT = '_TARG' + str(round(THRTARG)) + '/'
 ACTR = 100
 ACTR_TEXT = '_ACTR' + str(round(ACTR)) + '_'
@@ -21,20 +20,29 @@ ACT_STDREL = 0.6  # 0.6#0.01#0.7
 STD_TEXT = 'STDR' + str(ACT_STDREL)
 STD_TEXT = STD_TEXT.replace('.', '_')
 
-# File locations
-sigmaVals = [0.0, 0.9]  # Always explore monopolar stimulation and one value of sigma for triploar
+
+sigma_vals = [0.0, 0.9]  # Always explore monopolar stimulation and one value of sigma for triploar
 # sigmaVals is overridden if we're working on a subject, because we have specific values for them
-all_sigs = [0.0, 0.5, 0.9]
+all_sigs = [0.0, 0.5, 0.8, 0.9]  ## used by the 2D forward model so that it calculates data for all likely sigma values
 # can be overridden for individual subjects
-TP_SIGMA = sigmaVals[-1]  # standard partial-tripolar sigma value; use this instead of hardcoding 0.9 elsewhere
+TP_SIGMA = sigma_vals[-1]  # standard partial-tripolar sigma value; use this instead of hardcoding 0.9 elsewhere
 # behaviorVals = [0, 0]  # change to [0,1] if looking at M levels
+
+# 2D forward model params
+surv_grid_vals = np.arange(0.04, 0.97, 0.02)
+rpos_grid_vals = np.arange(-0.95, 0.96, 0.02)
+# survVals = np.arange(0.04, 0.97, 0.2)  # fewer entries for faster debugging
+# rposVals = np.arange(-0.95, 0.96, 0.2)
+hires = '_hi_res'
+n_surv = len(surv_grid_vals)
+n_rpos = len(rpos_grid_vals)
 
 COCHLEA = {'source': 'manual', 'timestamp': [], 'radius': []}
 electrodes = {'source': 'manual', 'timestamp': [], 'zpos': [], 'rpos': []}
 NEURONS = {'act_ctr': ACTR, 'act_stdrel': ACT_STDREL, 'nsurvival': [], 'sidelobe': 1, 'neur_per_clust': 10,
            'rlvl': [], 'rule': 'proportional', 'coef': 0.0, 'power': 1.0, 'thrtarg': THRTARG, 'M_targ': M_level_target}
 # For COEF convex: <0 | 0.4, 0.9  linear: 0 | 1; concave: >0 | 1.0, 1.8
-CHANNEL = {'source': 'manual', 'behavior': 0, 'number': range(0, NELEC), 'config': 'pTP', 'sigma': sigmaVals[0], 'alpha': 0.5,
+CHANNEL = {'source': 'manual', 'behavior': 0, 'number': range(0, NELEC), 'config': 'pTP', 'sigma': sigma_vals[0], 'alpha': 0.5,
            'current': 10000000000.0}
 GRID = {'r': 0.1, 'th': 0.0, 'z': np.arange(0, 33, 0.01)}  # mm
 
@@ -44,17 +52,17 @@ GRID = {'r': 0.1, 'th': 0.0, 'z': np.arange(0, 33, 0.01)}  # mm
 
 # all_measures = {'mp': True, 'tp': True, 'mp_mcl': True, 'ecap': True}  # measures calculated by the forward model
 # all_measures = {'mp': True, 'tp': True}  # measures calculated by the forward model
-all_measures = {'threshold': True}
+all_measures = {'threshold': True, 'mp_mcl': True}
 # new system 17 June 2026. all_measures can now have 'threshold', 'mcl' and/or 'ecap'
 # for 'threshold', all sigma values in all_sigs will be calculated by fwd_model and fwd_model_2d
 # This allows us to have 2D models read for any subjects with 0.0, 0.5 or 0.9 sigma values
 fit_measures = {'mp': 1.0, 'tp': 1.0, 'mp_mcl': 0.0, 'ecap': 0.0}  # measure weights for fitting with the inverse model
 RUN_INFO = {'scenario': 'scenario', 'run_time': [], 'run_duration': 0.0, 'fit_measures': fit_measures}
-global simParams
-simParams = {'cochlea': COCHLEA, 'electrodes': electrodes, 'channel': CHANNEL, 'grid': GRID, 'neurons': NEURONS,
-             'run_info': RUN_INFO}
+global sim_params
+sim_params = {'cochlea': COCHLEA, 'electrodes': electrodes, 'channel': CHANNEL, 'grid': GRID, 'neurons': NEURONS,
+              'run_info': RUN_INFO}
 
-nZ = len(GRID['z'])
+n_z = len(GRID['z'])
 ct_uncertainty = 0.1  # uncertainty for CT values in case one wants to display it on graphs
 
 # Set specific scenarios to run with forward model.
@@ -72,7 +80,7 @@ global scenarios
 # scenarios = ['Gradual80R75']
 # scenarios = ['Uniform80R05']
 # scenarios = ['pilot']
-# scenarios = ['Uniform20R05']
+# scenarios = ['Uniform20R00']
 # scenarios=['Uniform20R01']
 # scenarios = ['Uniform100R05', 'Uniform100R10', 'Uniform100R15']
 # scenarios = ['Uniform80R05', 'Uniform80R10', 'Uniform80R15']  # Used for Fig 3
@@ -87,8 +95,10 @@ global scenarios
 # scenarios = ['RampRpos2SGradual80']
 # scenarios = ['RampRposSOneHoleGradual80']
 # scenarios = ['subject_2596']
-scenarios = ['Gradual80R00', 'RampRposS80', 'RampRposSGradual80']  # for paper figure 6
-# scenarios = ['RampRposSGradual80']  # for paper figure 6
+# scenarios =  ['RealisticHole_20_0']
+# scenarios =  ['RealisticHole_50_10', 'RealisticHole_20_0']
+# scenarios = ['Gradual80R00', 'RampRposS80', 'RampRposSGradual80']  # for paper figure 6
+scenarios = ['RampRposSGradual80']  # for paper figure 6
 # scenarios = ['Gradual2_80R00']
 # scenarios=['Gradual80R-75']
 # scenarios = ['RampRposRampSurv']
@@ -126,6 +136,7 @@ scenarios = ['Gradual80R00', 'RampRposS80', 'RampRposSGradual80']  # for paper f
 # scenarios = ['A022R']
 # scenarios = ['A022R_constrained']
 # scenarios = ['A022R_constrained_corrected']
+# scenarios = ['A039L']
 # scenarios = ['A035R']
 # scenarios = ['A035R_constrained']
 # scenarios = ['A035R_constrained_corrected']
@@ -143,7 +154,7 @@ INVOUTPUTDIR = INV_OUT_PRFIX + new_dir_suffix
 vtable_dir = 'v_tables/'
 
 if RE_TEXT == 'RE70':
-    FIELDTABLE = '16May2024_MedResolution_Rext70_nonans.dat'
+    FIELDTABLE = '14September2024_MedResolution_Rext70_nonans.dat'
 elif RE_TEXT == 'RE125':
     FIELDTABLE = '3June2024_MedResolution_Rext125_nonans.dat'
 elif RE_TEXT == 'RE250':
