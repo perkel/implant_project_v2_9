@@ -9,14 +9,14 @@ from itertools import combinations
 from common_params import *  # import common values across all models
 import subject_data
 
-def select_electrode_conditions(distance, survival, n_deactivate=4, n_focus=7, max_adjacent=2,
-                                    no_focus=(0, 15)):
+def select_electrode_conditions(distance, survival, n_deactivate=4, deact_thr = 0.4, n_focus=7,
+                                max_adjacent=2, no_focus=(0, 15)):
     """Electrode selections for three stimulation conditions, from per-electrode fitted distance and
     neuronal survival (16 values each, electrode order).
 
       A: focus the n_focus electrodes with the greatest distance; nothing deactivated.
-      B: deactivate up to n_deactivate electrodes with the lowest total survival, with no more than
-         max_adjacent of the deactivated electrodes consecutive; no focusing.
+      B: deactivate up to n_deactivate electrodes with the lowest total survival but survival must be below deact_thr,
+         with no more than max_adjacent of the deactivated electrodes consecutive; no focusing.
       C: deactivate the same electrodes as B, and focus the n_focus remaining (active) electrodes
          with the greatest distance.
 
@@ -56,42 +56,6 @@ def select_electrode_conditions(distance, survival, n_deactivate=4, n_focus=7, m
             'B': {'deactivate': deactivate, 'focus': none},
             'C': {'deactivate': deactivate, 'focus': top_distance(np.setdiff1d(all_el, deactivate))}}
 
-
-#
-# def select_electrodes(survival, distance, n_deactivate=4, n_focus=7, max_adjacent=2): # from Claude
-#     """Two-step electrode selection.
-#     1. Deactivate the n_deactivate electrodes with the lowest total survival, such that no more than
-#        max_adjacent selected electrodes are consecutive (exhaustive search -> true optimum).
-#     2. From the electrodes that remain active, choose up to n_focus with the greatest fitted
-#        distance for focused stimulation (no adjacency constraint).
-#     NaN survival -> never deactivated; NaN distance -> never chosen for focusing.
-#     Returns (deactivate, focus): sorted 0-based electrode index arrays (add 1 for electrode numbers)."""
-#     survival = np.asarray(survival, dtype=float)
-#     distance = np.asarray(distance, dtype=float)
-#
-#     def longest_run(idx):
-#         run = best = 1
-#         for a, b in zip(idx[:-1], idx[1:]):
-#             run = run + 1 if b == a + 1 else 1
-#             best = max(best, run)
-#         return best
-#
-#     candidates = np.flatnonzero(~np.isnan(survival))
-#     combos = combinations(candidates, n_deactivate)
-#     valid = (c for c in combos if longest_run(c) <= max_adjacent)
-#     deactivate = np.array(sorted(min(valid, key=lambda c: survival[list(c)].sum())))
-#
-#     remaining = np.setdiff1d(np.flatnonzero(~np.isnan(distance)), deactivate)
-#     if np.max(deactivate) > len(deactivate):
-#         distance[deactivate[:-1]+1] = np.nan
-#     else:
-#         distance[deactivate+1] = np.nan
-#     # focus0 = remaining[np.argsort(distance[remaining])[::-1][:n_focus]]  # largest distance first
-#
-#     aaaa = distance
-#     focus = np.argsort(aaaa, descending=True)[:n_focus]
-#     focus_only = np.argsort(distance, descending=True)[:n_focus]  # n_focus electrodes with largest distance
-#     return deactivate+1, np.sort(focus)+1, focus_only+1
 
 
 def plot_inverse_results(use_fwd_model, this_case, unsupervised,fit_mode):
