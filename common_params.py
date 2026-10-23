@@ -98,7 +98,7 @@ global scenarios
 # scenarios =  ['RealisticHole_20_0']
 # scenarios =  ['RealisticHole_50_10', 'RealisticHole_20_0']
 # scenarios = ['Gradual80R00', 'RampRposS80', 'RampRposSGradual80']  # for paper figure 6
-scenarios = ['RampRposSGradual80']  # for paper figure 6
+# scenarios = ['RampRposSGradual80']  # for paper figure 6
 # scenarios = ['Gradual2_80R00']
 # scenarios=['Gradual80R-75']
 # scenarios = ['RampRposRampSurv']
@@ -136,7 +136,7 @@ scenarios = ['RampRposSGradual80']  # for paper figure 6
 # scenarios = ['A022R']
 # scenarios = ['A022R_constrained']
 # scenarios = ['A022R_constrained_corrected']
-# scenarios = ['A039L']
+scenarios = ['A039L']
 # scenarios = ['A035R']
 # scenarios = ['A035R_constrained']
 # scenarios = ['A035R_constrained_corrected']
