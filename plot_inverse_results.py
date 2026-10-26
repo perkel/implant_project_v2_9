@@ -10,17 +10,19 @@ from common_params import *  # import common values across all models
 import subject_data
 
 def select_electrode_conditions(distance, survival, n_deactivate=4, n_focus=7, max_adjacent=2,
-                                    no_focus=(0, 15), deact_thr=0.1):
+                                    no_focus=(0, 15), deact_thr=0.1, focus_thr=1.0):
     """Electrode selections for three stimulation conditions, from per-electrode fitted distance and
     neuronal survival (16 values each, electrode order).
 
-      A: focus the n_focus electrodes with the greatest distance; nothing deactivated.
+      A: focus up to n_focus electrodes with the greatest distance; nothing deactivated. If focus_thr
+         is given, only electrodes with distance strictly greater than focus_thr can be focused (so
+         fewer than n_focus, possibly none, may be chosen).
       B: deactivate up to n_deactivate electrodes with the lowest total survival, with no more than
          max_adjacent of the deactivated electrodes consecutive; no focusing. If deact_thr is given,
          only electrodes with survival strictly below deact_thr can be deactivated (so fewer than
          n_deactivate, possibly none, may be chosen).
-      C: deactivate the same electrodes as B, and focus the n_focus remaining (active) electrodes
-         with the greatest distance.
+      C: deactivate the same electrodes as B, and focus up to n_focus remaining (active) electrodes
+         with the greatest distance (same focus_thr rule as A).
 
     NaN survival -> never deactivated; NaN distance -> never focused. 'Up to': if no valid set of
     n_deactivate exists (NaNs / strict adjacency limit), the largest valid set is used.
@@ -40,6 +42,9 @@ def select_electrode_conditions(distance, survival, n_deactivate=4, n_focus=7, m
     def top_distance(eligible):
         # never focus on NaN-distance electrodes or on the end electrodes in no_focus
         excluded = np.union1d(np.flatnonzero(np.isnan(distance)), no_focus)
+        if focus_thr is not None:  # only electrodes farther than focus_thr are focus candidates
+            with np.errstate(invalid='ignore'):
+                excluded = np.union1d(excluded, np.flatnonzero(~(distance > focus_thr)))
         eligible = np.setdiff1d(eligible, excluded)
         return np.sort(eligible[np.argsort(distance[eligible])[::-1][:n_focus]])
 
@@ -74,7 +79,9 @@ def plot_inverse_results(use_fwd_model, this_case, unsupervised,fit_mode):
     ct_vals = []  # to get rid of a warning
     plot_scatter = False
     tp_extend = True
+    if_plot_program_recs = True
     deact_thr = 0.4  # only electrodes with fitted survival < deact_thr can be deactivated; None = no limit
+    focus_thr = 1.0  # only electrodes with fitted distance (1 - rpos, mm) > focus_thr can be focused; None = no limit
 
     # Open file and load data
     # The npy file holds a list of results; overall_offset_db (dB subtracted from measured subject
@@ -229,52 +236,59 @@ def plot_inverse_results(use_fwd_model, this_case, unsupervised,fit_mode):
 
 
     if not use_fwd_model:
-        # find and indicate electrodes selected for deactivation
-        # deact_recs = select_low_survival(fitsurvvals) + 1  # + 1 because the first 1 available is #1
-        # deactivate, focus_comb, focus_only = select_electrodes(fitsurvvals[1:NELEC-1], 1-fitrposvals[1:NELEC-1])
+        if if_plot_program_recs:
+            # find and indicate electrodes selected for deactivation
+            # deact_recs = select_low_survival(fitsurvvals) + 1  # + 1 because the first 1 available is #1
+            # deactivate, focus_comb, focus_only = select_electrodes(fitsurvvals[1:NELEC-1], 1-fitrposvals[1:NELEC-1])
 
-        conditions = select_electrode_conditions(1-fitrposvals, fitsurvvals, deact_thr=deact_thr)
+            conditions = select_electrode_conditions(1-fitrposvals, fitsurvvals, deact_thr=deact_thr,
+                                                     focus_thr=focus_thr)
+            if focus_thr is not None:  # show the focus threshold on the distance panel
+                axs[1].axhline(focus_thr, color='blue', linestyle='--', linewidth=1, alpha=0.5,
+                               label='focus threshold')
+                axs[1].legend()
 
-        deactivate = conditions['B']['deactivate']  # deactivate only
-        focus_only = conditions['A']['focus']  # focus only
-        focus_comb = conditions['C']['focus']  # combined focusing and eactivation
-        print('deactivate recs: ', deactivate[:])
-        print('focus recs: ', focus_comb[:])
-        print('focus only: ', focus_only[:])
-        for idx, elec in enumerate(deactivate):
-            # Define the ellipse parameters
-            # (center_x, center_y), width, height, rotation_angle (in degrees)
-            print('idx, elec: ', idx, elec)
-            ellipse = Ellipse(xy=(xvals[elec], fitsurvvals[elec]), width=1.2, height=0.1, linewidth=3, angle=0,
-                              edgecolor='red', facecolor='None', alpha=0.5)
+            deactivate = conditions['B']['deactivate']  # deactivate only
+            focus_only = conditions['A']['focus']  # focus only
+            focus_comb = conditions['C']['focus']  # combined focusing and eactivation
+            print('deactivate recs: ', deactivate[:])
+            print('focus recs: ', focus_comb[:])
+            print('focus only: ', focus_only[:])
+            for idx, elec in enumerate(deactivate):
+                # Define the ellipse parameters
+                # (center_x, center_y), width, height, rotation_angle (in degrees)
+                print('idx, elec: ', idx, elec)
+                ellipse = Ellipse(xy=(xvals[elec], fitsurvvals[elec]), width=1.2, height=0.1, linewidth=3, angle=0,
+                                  edgecolor='red', facecolor='None', alpha=0.5)
 
-            # 3. Add the patch to the axes
-            axs[2].add_patch(ellipse)
-        # focus_comb
-        for idx, elec in enumerate(focus_comb):
-            # axs[1].arrow(elec+1, 0, 0, 0.15, width=0.2, head_width=0.1, facecolor='blue')
-            axs[1].annotate('', xy=(xvals[elec], 0.3), xytext=(xvals[elec], 0),
-                            arrowprops=dict(arrowstyle="->", color="blue", lw=3))
+                # 3. Add the patch to the axes
+                axs[2].add_patch(ellipse)
+            # focus_comb
+            for idx, elec in enumerate(focus_comb):
+                # axs[1].arrow(elec+1, 0, 0, 0.15, width=0.2, head_width=0.1, facecolor='blue')
+                axs[1].annotate('', xy=(xvals[elec], 0.3), xytext=(xvals[elec], 0),
+                                arrowprops=dict(arrowstyle="->", color="blue", lw=3))
 
-        # focus only the top 7
-        # myf_only = np.argsort(1-fitrposvals[1:NELEC-1], descending=True)[:7] + 1
-        for idx, elec in enumerate(focus_only):
-            axs[1].plot(xvals[elec]+0.1, 1-fitrposvals[elec], marker='o', color='blue')
+            # focus only the top 7
+            # myf_only = np.argsort(1-fitrposvals[1:NELEC-1], descending=True)[:7] + 1
+            for idx, elec in enumerate(focus_only):
+                axs[1].plot(xvals[elec]+0.1, 1-fitrposvals[elec], marker='o', color='blue')
 
 
-        # Save CSV file
-        rows = [
-            ['Subject:' + this_case],  # a text label line
-            ['Electrodes suggested for deactivation'],
-            list(deactivate+1),  # numeric row (any length)
-            ['Electrodes selected for focusing (with no deactivation'],
-            list(focus_only+1),
-            ['Electrodes selected for focusing (with others deactivated'],
-            list(focus_comb+1)
-        ]
+            # Save CSV file
+            rows = [
+                ['Subject:' + this_case],  # a text label line
+                ['Electrodes suggested for deactivation'],
+                list(deactivate+1),  # numeric row (any length)
+                ['Focus threshold distance (mm): ' + str(focus_thr)],
+                ['Electrodes selected for focusing (with no deactivation'],
+                list(focus_only+1),
+                ['Electrodes selected for focusing (with others deactivated'],
+                list(focus_comb+1)
+            ]
 
-        with open('electrode_selection_' + this_case + '.csv', 'w', newline='') as f:
-            csv.writer(f).writerows(rows)
+            with open('electrode_selection_' + this_case + '.csv', 'w', newline='') as f:
+                csv.writer(f).writerows(rows)
 
     if save_fig:
         save_file_name = INVOUTPUTDIR + this_case + '_fitResultsFig_' + fit_mode + '.png'
