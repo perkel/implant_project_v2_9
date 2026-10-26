@@ -13,6 +13,7 @@ import numpy as np
 
 import set_scenario as s_scen
 import load_fwd_csv_data as lcsv
+from subject_data import subj_thr_data
 from subject_data_xlsx import subj_thr_data_xlsx
 from common_params import *
 
@@ -89,7 +90,10 @@ def load_scenario_or_subject_data(scen, scenario, thresh_summary_full):
         subject = scenario
         # Thresholds come from the master workbook (subject_data_xlsx.py): the two most recent
         # measurements at different sigmas, lower sigma = monopolar, higher = tripolar.
-        retval = subj_thr_data_xlsx(subject)
+        if subject[0] == 'S':
+            retval = subj_thr_data(subject)
+        else:
+            retval = subj_thr_data_xlsx(subject)
         thr_data = {'thrmp_db': retval[0], 'thrmp': [], 'thrtp_db': retval[1], 'thrtp': [], 'thrtp_sigma': TP_SIGMA}
         sig_vals = retval[2]
         espace = retval[3]
