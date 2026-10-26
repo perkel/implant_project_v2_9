@@ -125,6 +125,8 @@ global scenarios
 
 # scenarios = ['Gradual80R00', 'RampRposS80', 'RampRposSGradual80', 'S22', 'S29', 'S38', 'S40', 'S41', 'S42',
 #              'S43', 'S44', 'S46', 'S47', 'S49R', 'S50', 'S52', 'S53', 'S54', 'S55', 'S56', 'S57']
+scenarios = ['S22', 'S29', 'S38', 'S40', 'S41', 'S42',
+             'S43', 'S44', 'S46', 'S47', 'S49R', 'S50', 'S52', 'S53', 'S54', 'S55', 'S56', 'S57']
 # scenarios = ['RampRposSGradual80', 'S22', 'S42',]
 
 # scenarios = ['A014L']
@@ -136,7 +138,8 @@ global scenarios
 # scenarios = ['A022R']
 # scenarios = ['A022R_constrained']
 # scenarios = ['A022R_constrained_corrected']
-scenarios = ['A039L']
+# scenarios = ['A031']
+# scenarios = ['A039L']
 # scenarios = ['A035R']
 # scenarios = ['A035R_constrained']
 # scenarios = ['A035R_constrained_corrected']
