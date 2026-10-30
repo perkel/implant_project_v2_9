@@ -10,7 +10,7 @@ from common_params import *  # import common values across all models
 import subject_data
 
 def select_electrode_conditions(distance, survival, n_deactivate=4, n_focus=7, max_adjacent=2,
-                                    no_focus=(0, 15), deact_thr=0.1, focus_thr=1.0):
+                                    no_focus=(0, 15), deact_thr=0.1, focus_thr=1.0, no_deactivate=(1,)):
     """Electrode selections for three stimulation conditions, from per-electrode fitted distance and
     neuronal survival (16 values each, electrode order).
 
@@ -24,6 +24,8 @@ def select_electrode_conditions(distance, survival, n_deactivate=4, n_focus=7, m
       C: deactivate the same electrodes as B, and focus up to n_focus remaining (active) electrodes
          with the greatest distance (same focus_thr rule as A).
 
+    Electrodes listed in no_deactivate (0-based indices) are never deactivated; by default index 1,
+    i.e. electrode #2, which cannot be deactivated.
     NaN survival -> never deactivated; NaN distance -> never focused. 'Up to': if no valid set of
     n_deactivate exists (NaNs / strict adjacency limit), the largest valid set is used.
     Returns {'A': {'deactivate': idx, 'focus': idx}, 'B': {...}, 'C': {...}} with sorted 0-based
@@ -51,7 +53,7 @@ def select_electrode_conditions(distance, survival, n_deactivate=4, n_focus=7, m
     # B: lowest-survival set under the adjacency limit (exhaustive search -> true optimum)
     with np.errstate(invalid='ignore'):  # NaN < deact_thr is False, so NaN is never a candidate
         can_deactivate = ~np.isnan(survival) if deact_thr is None else survival < deact_thr
-    candidates = np.flatnonzero(can_deactivate)
+    candidates = np.setdiff1d(np.flatnonzero(can_deactivate), no_deactivate)  # never electrodes in no_deactivate
     deactivate = np.array([], dtype=int)
     for k in range(min(n_deactivate, len(candidates)), 0, -1):
         valid = [c for c in combinations(candidates, k) if longest_run(c) <= max_adjacent]
