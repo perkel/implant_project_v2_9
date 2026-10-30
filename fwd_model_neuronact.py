@@ -103,7 +103,7 @@ def fwd_model_neuron_act():
             # get this from the Excel sheet
             # retval = subj_thr_data_xlsx(scenario)
             thr_data = {'thrmp_db': A031_thr_mp, 'thrmp': np.power(10, (A031_thr_mp/20.0)),
-                        'thrtp_db': A031_thr_tp, 'thrtp': np.power(10, (A031_thr_tp/20)), 'thrtp_sigma': TP_SIGMA}
+                        'thrtp_db': A031_thr_tp, 'thrtp': np.power(10, (A031_thr_tp/20.0)), 'thrtp_sigma': TP_SIGMA}
             # sig_vals = retval[2]
             # espace = retval[3]
             elec_midpoint = GRID['z'][-1]/2.0  # electrode array midpoint
@@ -140,16 +140,10 @@ def fwd_model_neuron_act():
         neural_profile = np.zeros((n_sig, NELEC, n_z))
         active_profile = np.zeros((n_sig, NELEC, n_z))
 
-        # prepare the plot
-        fig, axs = plt.subplots(1, 1)
-        text = 'Sigma vals: ' + str(sigma_vals[0]) + ' and ' + str(sigma_vals[1])
-        fig.suptitle(scenario + text)
-        axs.set_ylabel('Neurons activated')
-
         for i in range(NELEC):
             for idx, this_sig in enumerate(sigma_vals):
                 sim_params['channel']['sigma'] = this_sig
-                if sigma_vals[0] > 0.0:
+                if this_sig > 0.0:
                     if i == 0 or i == NELEC - 1:
                         pass
                     else:
@@ -159,10 +153,7 @@ def fwd_model_neuron_act():
                         e_field = abs(aprofile)  # uV^2/mm^2
                         ncounts[idx, i], neural_profile[idx, i, :], active_profile[idx, i, :] =(
                             thr_f.thr_function(thr_data['thrmp'][i], e_field, sim_params))
-                        if idx == 0:
-                            axs.plot(i, ncounts[idx, i], 'o', color='green')
-                        else:
-                            axs.plot(i, ncounts[idx, i], 'o', color='red')
+
 
                 else:
                     # get neuron count and neuronal activation for this electrode
@@ -173,7 +164,71 @@ def fwd_model_neuron_act():
                     ncounts[idx, i], neural_profile[idx, i, :], active_profile[idx, i, :] =(
                         thr_f.thr_function(thr_data['thrmp'][i], e_field, sim_params))
 
+        # prepare the plot
+        fig, axs = plt.subplots(1, 1)
+        text = 'Sigma vals: ' + str(sigma_vals[0]) + ' and ' + str(sigma_vals[1])
+        fig.suptitle(scenario + text)
+        axs.set_ylabel('Neurons activated')
 
+
+        axs.plot(np.arange(NELEC) + 1, ncounts[0, :], 'o', color='green')
+        axs.plot(np.arange(NELEC) + 1, ncounts[1, :], 'o', color='red')
+
+        plt.show()
+
+        # second plot for neural activation
+        fig2, axs2 = plt.subplots(1, 1)
+        text = 'Activation values'
+        fig2.suptitle(scenario + text)
+        axs2.set_ylabel('Neurons activated')
+        axs2.set_xlabel('Cochlear position (mm)')
+        axs2.plot(sim_params['grid']['z'], neural_profile[0, 1, :], color='blue')
+        axs2.plot(sim_params['grid']['z'], sim_params['neurons']['nsurvival'], color='red')
+        plt.show()
+
+        # third plot: ridgeline of the activation profiles for all electrodes, each offset vertically.
+        # One panel per sigma value (MP, TP). Electrode 1 is at the bottom; lower ridges are drawn in
+        # front of higher ones. TP end electrodes are not calculated, so they show as flat lines.
+        ridge_overlap = 0.6  # 0 = no overlap between neighbouring ridges; larger = more overlap
+        z = sim_params['grid']['z']
+        peak = np.nanmax(neural_profile)
+        offset = peak * (1.0 - ridge_overlap) if peak > 0 else 1.0
+        active_z = z[np.any(neural_profile > 0.01 * peak, axis=(0, 1))] if peak > 0 else z
+        x_lo, x_hi = active_z[0] - 1.0, active_z[-1] + 1.0  # zoom to where anything is activated
+
+        fig3, axs3 = plt.subplots(1, n_sig, sharey=True, figsize=(4.5 * n_sig, 8), squeeze=False)
+        fig3.suptitle(scenario + ' activation profiles, all electrodes')
+        cmap = plt.get_cmap('viridis')
+        for idx, this_sig in enumerate(sigma_vals):
+            ax = axs3[0, idx]
+            for i in range(NELEC - 1, -1, -1):  # top ridge first so lower ridges overlap it
+                base = i * offset
+                color = cmap(i / (NELEC - 1))
+                zord = 2 * (NELEC - i)
+                ax.fill_between(z, base, base + neural_profile[idx, i, :], color='white', zorder=zord)
+                ax.plot(z, base + neural_profile[idx, i, :], color=color, lw=1.2, zorder=zord + 1)
+                ax.plot([x_lo, x_hi], [base, base], color='lightgray', lw=0.5, zorder=zord - 1)
+                ax.plot(electrodes['zpos'][i], base, '|', color=color, ms=6, zorder=zord + 1)  # electrode site
+            ax.set_title(('MP' if this_sig == 0 else 'TP') + ' (sigma = %.1f)' % this_sig)
+            ax.set_xlabel('Cochlear position (mm)')
+            ax.set_xlim(x_lo, x_hi)
+            ax.spines[['top', 'right', 'left']].set_visible(False)
+        axs3[0, 0].set_yticks(np.arange(NELEC) * offset)
+        axs3[0, 0].set_yticklabels(np.arange(NELEC) + 1)
+        axs3[0, 0].tick_params(axis='y', length=0)
+        axs3[0, 0].set_ylabel('Electrode (ridge height = neurons activated)')
+        # vertical scale bar so the ridge heights can be read
+        # bar length: the largest 1, 2 or 5 x 10^n that fits in one offset step
+        mag = 10.0 ** np.floor(np.log10(offset))
+        bar_len = max(m * mag for m in (1, 2, 5) if m * mag <= offset)
+        axs3[0, -1].plot([x_hi - 0.3, x_hi - 0.3], [NELEC * offset, NELEC * offset + bar_len], color='black', lw=2,
+                         clip_on=False)
+        axs3[0, -1].text(x_hi - 0.6, NELEC * offset + bar_len / 2, '%g neurons/bin' % bar_len, ha='right',
+                         va='center', fontsize=8)
+        axs3[0, 0].set_ylim(-0.3 * offset, (NELEC + 1.2) * offset)
+        fig3.tight_layout()
+        os.makedirs(FWDOUTPUTDIR, exist_ok=True)
+        fig3.savefig(FWDOUTPUTDIR + scenario + '_activation_ridgeline.png', dpi=200)
         plt.show()
 
         # Write a csv file
