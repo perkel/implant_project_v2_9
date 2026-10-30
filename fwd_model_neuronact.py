@@ -209,6 +209,8 @@ def fwd_model_neuron_act():
                 ax.plot(z, base + neural_profile[idx, i, :], color=color, lw=1.2, zorder=zord + 1)
                 ax.plot([x_lo, x_hi], [base, base], color='lightgray', lw=0.5, zorder=zord - 1)
                 ax.plot(electrodes['zpos'][i], base, '|', color=color, ms=6, zorder=zord + 1)  # electrode site
+                count_text = f"{ncounts[idx, i]:.0f}"
+                ax.text(25, base, count_text, ha='center', va='bottom', fontsize=12, color='black')
             ax.set_title(('MP' if this_sig == 0 else 'TP') + ' (sigma = %.1f)' % this_sig)
             ax.set_xlabel('Cochlear position (mm)')
             ax.set_xlim(x_lo, x_hi)
