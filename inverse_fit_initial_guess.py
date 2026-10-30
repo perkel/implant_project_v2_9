@@ -12,22 +12,21 @@ from scipy.interpolate import RegularGridInterpolator
 from common_params import *
 
 
-def find_closest(x1, y1, x2, y2):  # returns indices of the point on each curve that are closest
-    # Brute force (pretty ugly, but hopefully a rare case)
-    # TODO Should test for case where x1 or x2 is a scalar
-    n1 = len(x1)
-    n2 = len(x2)
+def closest_midpoint(x1, y1, x2, y2, rpos_scale=0.5):
+    """Midpoint of the closest pair of points between two curves, in (rpos, survival) space. Used
+    as the initial guess when the MP and TP contours don't cross.
 
-    min_dist = 5.0
-    min_idx = [0, 0]
-    for ii in range(n1):
-        for jj in range(n2):
-            dist = np.sqrt((((x1[ii] - x2[jj]) / 2) ** 2) + ((y1[ii] - y2[jj]) ** 2))
-            if dist < min_dist:
-                min_idx = [ii, jj]
-                min_dist = dist
-
-    return min_idx
+    rpos differences are scaled by rpos_scale (0.5, as in the original find_closest) because rpos
+    spans about twice the range of survival (-0.95..0.95 vs 0.04..0.96), so this roughly balances
+    the two axes. NaN points (the gaps between contour pieces from join_segments) are ignored.
+    Returns (rpos, survival)."""
+    x1, y1, x2, y2 = (np.atleast_1d(np.asarray(v, dtype=float)) for v in (x1, y1, x2, y2))
+    # distance between every point on curve 1 (rows) and every point on curve 2 (columns)
+    d = np.sqrt(((x1[:, None] - x2[None, :]) * rpos_scale) ** 2 + (y1[:, None] - y2[None, :]) ** 2)
+    if np.all(np.isnan(d)):
+        raise ValueError('closest_midpoint: no valid points on one of the contours')
+    i, j = np.unravel_index(np.nanargmin(d), d.shape)
+    return (x1[i] + x2[j]) / 2.0, (y1[i] + y2[j]) / 2.0
 
 
 def contour_lines(z_map, level):
@@ -59,7 +58,7 @@ def tp_crossings_on_mp(mp_segs, tp_interp, tptarg):
 
 
 def join_segments(segs):
-    """Join contour pieces into single x and y arrays, separated by NaN (used by find_closest when
+    """Join contour pieces into single x and y arrays, separated by NaN (used by closest_midpoint when
     the contours don't cross)."""
     nan_row = np.full((1, 2), np.nan)
     joined = np.concatenate([part for seg in segs for part in (seg, nan_row)][:-1])
@@ -135,13 +134,9 @@ def estimate_initial_guesses(thresh_summary_full, scen, mono_thr, tripol_thr, si
                     print('max thr in 2D: ', np.max(mono_thr[2:, :]), ' and ', np.max(tripol_thr[2:, :]))
                     print(' and goals are: ', mptarg, ' and ', tptarg)
 
-                mp_idx, tp_idx = find_closest(mpx, mpy, tpx, tpy)
-
-                rp_guess = (mpx[mp_idx] + tpx[tp_idx]) / 2.0
-                sv_guess = (mpy[mp_idx] + tpy[tp_idx]) / 2.0
-
-                print('electrode: ', i, ";  no solutions. Closest: ", mp_idx, ' and ', tp_idx,
-                      ' , OVERRIDING to: (position, survival): ', rp_guess, sv_guess)
+                rp_guess, sv_guess = closest_midpoint(mpx, mpy, tpx, tpy)
+                print('electrode: ', i, ';  no solutions. Using midpoint of closest contour points ',
+                      '(position, survival): ', rp_guess, sv_guess)
 
             elif nsols[i] == 1:  # unique solution
                 print('electrode: ', i, ';  one solution: ', x, y)
