@@ -195,7 +195,9 @@ def plot_inverse_results(use_fwd_model, this_case, unsupervised,fit_mode):
     if not tp_extend:
         if use_fwd_model:
             # axs[2].plot(xvals[1:l_e], fitsurvvals[1:l_e], marker='o', color='red', label='fit')
-            for el in range(NELEC-2):
+            for el in range(NELEC-2):  # TODO: needto show this as interpolated between elecrode centers
+                left_y_val = np.interp(xvals[el+1]-0.45, fitsurvvals[el], fitsurvvals[el+1])
+                right_y_val = np.interp(xvals[el + 1] + 0.45, fitsurvvals[el+1], fitsurvvals[el + 2])
                 axs[2].plot([xvals[el+1] - 0.45, xvals[el+1] + 0.45], [fitsurvvals[el+1], fitsurvvals[el+1]],
                             color='black', label='fit')
             axs[2].plot(xvals[1:l_e], survvals[1:l_e], marker='o', color='green', label='desired')
@@ -205,12 +207,16 @@ def plot_inverse_results(use_fwd_model, this_case, unsupervised,fit_mode):
         else:
             # axs[2].plot(xvals[1:l_e], fitsurvvals[1:l_e], marker='o', color='black', label='modeled')
             for el in range(NELEC - 2):
+                left_y_val = np.interp(xvals[el+1]-0.45, fitsurvvals[el], fitsurvvals[el+1])
+                right_y_val = np.interp(xvals[el + 1] + 0.45, fitsurvvals[el+1], fitsurvvals[el + 2])
                 if el == 0:
                     axs[2].plot([xvals[el+1] - 0.45, xvals[el+1] + 0.45], [fitsurvvals[el], fitsurvvals[el]],
                             color='black', label='fit')
                 else:
-                    axs[2].plot([xvals[el+1] - 0.45, xvals[el+1] + 0.45], [fitsurvvals[el], fitsurvvals[el]],
-                            color='black')
+                    axs[2].plot([xvals[el+1] - 0.45, xvals[el+1], xvals[el+1] + 0.45],
+                                [left_y_val, fitsurvvals[el], right_y_val], color='black')
+                    # axs[2].plot([xvals[el+1] - 0.45, xvals[el+1] + 0.45], [fitsurvvals[el], fitsurvvals[el]],
+                    #         color='black')
 
 
     else:
@@ -223,8 +229,32 @@ def plot_inverse_results(use_fwd_model, this_case, unsupervised,fit_mode):
                 axs[2].plot(xvals, initvec[NELEC:], marker='o', color='purple', label='initial guess')
 
         else:
+
             for el in range(NELEC):
-                axs[2].plot([xvals[el]-0.45, xvals[el]+0.45], [fitsurvvals[el], fitsurvvals[el]], color='black')
+                three_x = [xvals[el]-0.45, xvals[el], xvals[el]+0.45]
+                if el == 0:
+                    two_x = [xvals[el]-1, xvals[el]]
+                    two_y = [fitsurvvals[el], fitsurvvals[el]]
+                else:
+                    two_x = [xvals[el], xvals[el]+1]
+                    two_y = [fitsurvvals[el-1], fitsurvvals[el]]
+
+                left_y_val = np.interp((xvals[el] +1 - 0.45), two_x, two_y)
+
+                if el == NELEC-1:
+                    two_x = [xvals[el], xvals[el]+1]
+                    two_y = [fitsurvvals[el], fitsurvvals[el]]
+                    # right_y_val = np.interp(xvals[el+1] + 0.45, two_x, two_y)
+                else:
+                    two_x = [xvals[el], xvals[el+1]]
+                    two_y = [fitsurvvals[el], fitsurvvals[el+1]]
+
+                right_y_val = np.interp(xvals[el] + 0.45, two_x, two_y)
+
+                print('x, tox, two_y, right: ', (xvals[el] + 0.45), two_x, two_y, right_y_val)
+                axs[2].plot([xvals[el]-0.45, xvals[el], xvals[el]+0.45],
+                            [left_y_val, fitsurvvals[el], right_y_val], color='black')
+                axs[2].plot(xvals, fitsurvvals, marker='o', color='black')
 
     axs[2].set(xlabel='Electrode number', ylabel='Fractional neuronal density', title=title_text)
     axs[2].set_xlim(0, 17)
