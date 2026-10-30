@@ -251,7 +251,6 @@ def plot_inverse_results(use_fwd_model, this_case, unsupervised,fit_mode):
 
                 right_y_val = np.interp(xvals[el] + 0.45, two_x, two_y)
 
-                print('x, tox, two_y, right: ', (xvals[el] + 0.45), two_x, two_y, right_y_val)
                 axs[2].plot([xvals[el]-0.45, xvals[el], xvals[el]+0.45],
                             [left_y_val, fitsurvvals[el], right_y_val], color='black')
                 axs[2].plot(xvals, fitsurvvals, marker='o', color='black')
@@ -287,7 +286,6 @@ def plot_inverse_results(use_fwd_model, this_case, unsupervised,fit_mode):
             for idx, elec in enumerate(deactivate):
                 # Define the ellipse parameters
                 # (center_x, center_y), width, height, rotation_angle (in degrees)
-                print('idx, elec: ', idx, elec)
                 ellipse = Ellipse(xy=(xvals[elec], fitsurvvals[elec]), width=1.2, height=0.1, linewidth=3, angle=0,
                                   edgecolor='red', facecolor='None', alpha=0.5)
 
