@@ -211,9 +211,9 @@ def save_scenario_results(scen, scenario, subject, use_fwd_model, fit_mode, thr_
             data_writer.writerow([t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12])
 
         thr_err_mp = np.abs(np.subtract(thrsim[0][0][:], thrtargs[0][0][:]))
-        ovrl_mean_mp_err = np.mean(thr_err_mp)
+        ovrl_mean_mp_err = np.nanmean(thr_err_mp)
         thr_err_tp = np.abs(np.subtract(thrsim[1][0][:], thrtargs[1][0][:]))
-        ovrl_mean_tp_err = np.mean(thr_err_tp)
+        ovrl_mean_tp_err = np.nanmean(thr_err_tp)  # TP is NaN at the end electrodes (no tripolar value)
 
         data_writer.writerow(" ")  # blank line
         data_writer.writerow(['Mean: ', ' ', 'MP_err: ', ovrl_mean_mp_err, ' TP_err: ', ovrl_mean_tp_err])
@@ -252,7 +252,6 @@ def save_summary_results(scenarios, thresh_err_summary, rpos_err_summary, surv_e
         header = ['Scenario/subject', 'Mean MP Threshold Error', 'Mean TP Threshold Error', 'Position Error',
                   'Density error', 'Dist correlation', 'Dist corr p']
         data_writer.writerow(header)
-        avg_rpos_err = 0.0
         for row in range(num_scen):
             if is_scenario(scenarios[row]):
                 data_writer.writerow([scenarios[row], '%.4f' % float(thresh_err_summary[row, 0]),
@@ -267,13 +266,20 @@ def save_summary_results(scenarios, thresh_err_summary, rpos_err_summary, surv_e
                                       '%.4f' % float(rpos_err_summary[row]), '%.4f' % np.nan,
                                       '%.4f' % float(dist_corr[row]), '%.5f' % float(dist_corr_p[row])])
 
-            avg_rpos_err += rpos_err_summary[row]
-
-        avg_rpos_err /= num_scen  # convert from sum to average
-
+        # Mean rpos error, reported separately for synthetic scenarios (error vs. the true position)
+        # and subjects (vs. the CT estimate), since those are different measures. Subjects without CT
+        # data have NaN rpos error and are left out; the line says how many contributed.
         data_writer.writerow(' ')
-        text = 'Summary. Mean rpos errorr: ' + '%.3f' % avg_rpos_err
-        data_writer.writerow([text])
+        is_scen = np.array([is_scenario(s) for s in scenarios], dtype=bool)
+        rpos_errs = np.asarray(rpos_err_summary, dtype=float)
+        for label, mask in (('scenarios (vs. true position)', is_scen), ('subjects (vs. CT estimate)', ~is_scen)):
+            vals = rpos_errs[mask]
+            if len(vals) == 0:
+                continue  # none of this kind in this run
+            n_known = np.count_nonzero(~np.isnan(vals))
+            avg_rpos_err = np.nanmean(vals) if n_known else np.nan
+            data_writer.writerow(['Summary. Mean rpos error for %s: %.3f (from %d of %d with known positions)'
+                                  % (label, avg_rpos_err, n_known, len(vals))])
 
     if if_save_npy:
         summary_file_name = INVOUTPUTDIR + 'summary_inverse_fit_results.npy'
