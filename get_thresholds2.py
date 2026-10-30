@@ -29,6 +29,34 @@ def objectivefunc(x, e_field, sim_params):
 
 # Constants
 fit_precision = 0.01
+SOLVER_RTOL = 1e-6  # relative tolerance on threshold current: ~1e-5 dB, far below anything the fits resolve
+WARM_FACTOR = 2.0  # warm-start search range: previous threshold / 2 to x 2 (i.e. +-6 dB)
+
+# Warm start. Successive calls (each step of the inverse fit, or neighbouring points of the 2D forward
+# model) give nearly the same thresholds, so each search first tries a narrow range around the last
+# threshold found for the same electrode, sigma and behavior. If the answer isn't inside that range, it
+# falls back to the original full-range search, so results never depend on the warm start beyond
+# ~1e-5 dB. Each worker process keeps its own memory of previous thresholds.
+_last_threshold = {}
+
+
+def reset_warm_start():
+    """Forget all remembered thresholds (the next search for each electrode uses the full range)."""
+    _last_threshold.clear()
+
+
+def _warm_start_solve(key, e_field, sim_params, prop_const, target, hi):
+    """Threshold from a narrow search around the previous threshold for 'key', or None if there is no
+    previous threshold or the target isn't within that range."""
+    prev = _last_threshold.get(key)
+    if prev is None:
+        return None
+    lo_w, hi_w = prev / WARM_FACTOR, min(prev * WARM_FACTOR, hi)
+    try:
+        return brentq(_neuron_count_error, lo_w, hi_w, args=(e_field, sim_params, prop_const, target),
+                      xtol=2e-12, rtol=SOLVER_RTOL, maxiter=100)
+    except ValueError:  # no sign change in the narrow range: fall back to the full search
+        return None
 
 
 def _neuron_count_error(current, e_field, sim_params, prop_const, target):
@@ -36,6 +64,24 @@ def _neuron_count_error(current, e_field, sim_params, prop_const, target):
     target neuron count. Same quantity as 'error' in the original bisection loop."""
     n_neur = thr_f.thr_function(current, e_field, sim_params, prop_const)[0]
     return n_neur - target
+
+
+def _full_range_solve(e_field, sim_params, prop_const, target, lo, hi):
+    """Threshold current from a search over the full range lo..hi (the original method)."""
+    err_hi = _neuron_count_error(hi, e_field, sim_params, prop_const, target)
+    if err_hi < -fit_precision:
+        # Even the maximum available current can't reach the target neuron count --
+        # matches the original bisection's early exit when nextstim == current on its
+        # very first iteration (undershoot at the upper bound).
+        return hi
+    err_lo = _neuron_count_error(lo, e_field, sim_params, prop_const, target)
+    if err_lo > fit_precision:
+        # Target already exceeded at zero current. The original bisection loop had no
+        # explicit handling for this (it shouldn't occur physically), but guard against
+        # brentq's "f(a) and f(b) must have different signs" error just in case.
+        return lo
+    return brentq(_neuron_count_error, lo, hi, args=(e_field, sim_params, prop_const, target),
+                  xtol=2e-12, rtol=SOLVER_RTOL, maxiter=100)
 
 
 def get_thresholds(field_table: np.ndarray, field_params: dict, sim_params: dict) -> list:
@@ -90,23 +136,12 @@ def get_thresholds(field_table: np.ndarray, field_params: dict, sim_params: dict
         lo = 0.0
         hi = sim_params['channel']['current']
 
-        err_hi = _neuron_count_error(hi, e_field, sim_params, prop_const, target)
-        if err_hi < -fit_precision:
-            # Even the maximum available current can't reach the target neuron count --
-            # matches the original bisection's early exit when nextstim == current on its
-            # very first iteration (undershoot at the upper bound).
-            nextstim = hi
-        else:
-            err_lo = _neuron_count_error(lo, e_field, sim_params, prop_const, target)
-            if err_lo > fit_precision:
-                # Target already exceeded at zero current. The original bisection loop had no
-                # explicit handling for this (it shouldn't occur physically), but guard against
-                # brentq's "f(a) and f(b) must have different signs" error just in case.
-                nextstim = lo
-            else:
-                nextstim = brentq(_neuron_count_error, lo, hi,
-                                  args=(e_field, sim_params, prop_const, target),
-                                  xtol=2e-12, rtol=8.881784197001252e-16, maxiter=100)
+        key = (round(float(sim_params['channel']['sigma']), 6), sim_params['channel']['behavior'], j)
+        nextstim = _warm_start_solve(key, e_field, sim_params, prop_const, target, hi)
+        if nextstim is None:  # no previous threshold, or it wasn't within the narrow range
+            nextstim = _full_range_solve(e_field, sim_params, prop_const, target, lo, hi)
+        if lo < nextstim < hi:  # remember genuine thresholds (not the 'unreachable' limits) for next time
+            _last_threshold[key] = nextstim
 
         # Neural profile at the converged current (used below for nelec==1; the nelec>1 case
         # already does its own explicit recompute a few lines down, same as the original).
