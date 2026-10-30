@@ -114,7 +114,7 @@ global scenarios
 
 # Actual subject data. For inverse model only
 # scenarios = ['A023R']  # paper "good fit" examples. Figure 7
-# scenarios = ['Gradual80R00', 'RampRposS80', 'RampRposSGradual80', 'S22','S29','S38','S40', 'S41','S42','S43','S46','S47','S48','S49R','S50','S52','S53','S54','S55','S56','S57']
+scenarios = ['Gradual80R00', 'RampRposS80', 'RampRposSGradual80', 'S22','S29','S38','S40', 'S41','S42','S43','S46','S47','S48','S49R','S50','S52','S53','S54','S55','S56','S57']
 # scenarios = ['S29', 'S56']  # paper "poor fit" examples. Figure 8
 # scenarios = ['A002R', 'A005L', 'A014L', 'A022L', 'A022R', 'A023R', 'A024L']
 #scenarios = ['S42_test']
@@ -138,7 +138,7 @@ global scenarios
 # scenarios = ['A022R']
 # scenarios = ['A022R_constrained']
 # scenarios = ['A022R_constrained_corrected']
-scenarios = ['A031']
+# scenarios = ['A031']
 # scenarios = ['A039L']
 # scenarios = ['A035R']
 # scenarios = ['A035R_constrained']
